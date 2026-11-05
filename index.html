@@ -1,0 +1,823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#3355CE">
+<title>猛士汽车日报看板生成器</title>
+<style>
+  :root{ color-scheme: light; }
+  *{ box-sizing:border-box; }
+  body{
+    margin:0; background:#F4F8FD; color:#1C2740;
+    font:14px/1.7 "PingFang SC","HarmonyOS Sans SC","MiSans","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Hiragino Sans GB",sans-serif;
+    letter-spacing:.02em;
+  }
+  .wrap{ max-width:1280px; margin:0 auto; padding:28px 24px 60px; }
+  header.top{
+    background:linear-gradient(100deg,#3355CE,#5083F2); color:#fff;
+    border-radius:14px; padding:22px 26px; margin-bottom:22px;
+  }
+  header.top h1{ margin:0 0 6px; font-size:22px; letter-spacing:.06em; font-weight:700; }
+  header.top p{ margin:0; font-size:13px; color:#D5E4FD; }
+  .card{ background:#fff; border:1px solid #E6EDF7; border-radius:14px; padding:20px 22px; margin-bottom:18px; }
+  .card h2{ margin:0 0 4px; font-size:16px; letter-spacing:.06em; }
+  .card .hint{ margin:0 0 14px; font-size:12.5px; color:#8A98AE; }
+  textarea{
+    width:100%; min-height:240px; resize:vertical; padding:14px 16px;
+    border:1px solid #DDE5F1; border-radius:10px; background:#FBFDFF;
+    font:13px/1.85 ui-monospace,"PingFang SC","Microsoft YaHei",monospace;
+    color:#2B3A55; letter-spacing:.01em;
+  }
+  textarea:focus{ outline:2px solid #B9D0F7; border-color:#9FBEF2; }
+  .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-top:14px; }
+  button{
+    border:0; border-radius:9px; padding:10px 18px; font-size:13.5px; font-weight:600;
+    letter-spacing:.06em; cursor:pointer; font-family:inherit;
+  }
+  .primary{ background:#2B62DF; color:#fff; }
+  .primary:hover{ background:#1E4FC2; }
+  .ghost{ background:#EDF3FE; color:#2B62DF; }
+  .ghost:hover{ background:#DFEAFD; }
+  .plain{ background:#F2F5F9; color:#5A6A84; }
+  .msg{ font-size:12.5px; color:#8A98AE; }
+  .msg.err{ color:#D1480F; }
+  .stat{ display:flex; gap:26px; flex-wrap:wrap; margin:2px 0 0; }
+  .stat div{ font-size:12.5px; color:#6B7D99; }
+  .stat b{ display:block; font-size:21px; color:#2B62DF; letter-spacing:.04em; }
+  details{ margin-top:14px; }
+  summary{ cursor:pointer; font-size:13px; font-weight:600; color:#2B62DF; letter-spacing:.06em; }
+  table{ width:100%; border-collapse:collapse; margin-top:12px; font-size:12.5px; }
+  th{ text-align:left; padding:7px 6px; color:#6B7D99; font-weight:600; border-bottom:1px solid #E6EDF7; white-space:nowrap; }
+  td{ padding:3px 4px; border-bottom:1px solid #F2F7FD; vertical-align:middle; }
+  td input,td select{
+    width:100%; border:1px solid transparent; border-radius:6px; padding:5px 6px;
+    font:12.5px/1.5 inherit; background:#FBFDFF; color:#1C2740; font-family:inherit;
+  }
+  td input:focus,td select:focus{ outline:0; border-color:#9FBEF2; background:#fff; }
+  td.del button{ padding:4px 9px; font-size:11.5px; background:#FDF0E6; color:#C2410C; }
+  .preview{ display:none; background:#fff; border:1px solid #E6EDF7; border-radius:12px; padding:10px; margin-top:14px; }
+  .preview.on{ display:block; }
+  .preview canvas{ width:100%; height:auto; display:block; border-radius:6px; }
+  .saveTip{ display:none; margin:10px 0 0; font-size:12.5px; color:#8A98AE; }
+  .saveTip.on{ display:block; }
+  @media (max-width:720px){
+    .wrap{ padding:14px 12px 48px; }
+    header.top{ padding:18px 18px; border-radius:12px; }
+    header.top h1{ font-size:19px; }
+    .card{ padding:16px 14px; border-radius:12px; }
+    textarea{ min-height:190px; font-size:13px; }
+    button{ padding:13px 18px; font-size:15px; flex:1 1 auto; min-width:120px; }
+    .row{ gap:8px; }
+    .msg{ flex-basis:100%; }
+    .stat{ gap:14px 20px; }
+    #tableWrap{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+    #tableWrap table{ min-width:860px; }
+  }
+  .foot{ font-size:12px; color:#9AA8BC; margin-top:10px; line-height:1.9; }
+  code{ background:#EEF3FB; padding:1px 5px; border-radius:4px; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>猛士汽车 · 日报看板生成器</h1>
+    <p>把每天的日报原文粘进来，一键生成发客户群的状态进度看板长图。全部在本机浏览器里运行，不上传任何内容。</p>
+  </header>
+
+  <section class="card">
+    <h2>第一步 · 粘贴日报原文</h2>
+    <p class="hint">直接粘微信里的日报全文即可，🟡 等符号不用清理。板块行形如「1️⃣官号板块」，分组行形如「一、运营发布」「二、今日工作内容」，事项行形如「1. 🟡事项，说明——责任人A+责任人B」。</p>
+    <textarea id="src" spellcheck="false"></textarea>
+    <div class="row">
+      <button class="primary" id="go">解析并生成</button>
+      <button class="ghost" id="demo">载入示例</button>
+      <button class="plain" id="clr">清空</button>
+      <span class="msg" id="msg"></span>
+    </div>
+  </section>
+
+  <section class="card" id="resultCard" style="display:none">
+    <h2>第二步 · 核对解析结果</h2>
+    <p class="hint">自动拆分难免有偏差，这里可以直接改标题、说明、责任人和状态，改完点「重新生成」。</p>
+    <div class="stat" id="stat"></div>
+    <details id="editBox">
+      <summary>展开微调事项</summary>
+      <div id="tableWrap"></div>
+      <div class="row"><button class="primary" id="regen">重新生成</button></div>
+    </details>
+  </section>
+
+  <section class="card" id="previewCard" style="display:none">
+    <h2>第三步 · 下载图片</h2>
+    <p class="hint">图片已在后台生成好，按 2 倍分辨率导出，发微信群不会糊。电脑上点「下载 PNG」；手机上点「显示图片」后长按保存到相册。</p>
+    <div class="row" style="margin:0">
+      <button class="primary" id="dl">下载 PNG</button>
+      <button class="ghost" id="showimg">显示图片</button>
+      <span class="msg" id="size"></span>
+    </div>
+    <p class="saveTip" id="saveTip">手机上长按下面的图片，选「存储到照片 / 保存图片」即可存进相册。</p>
+    <div class="preview" id="pv"><canvas id="cv"></canvas></div>
+    <p class="foot">
+      状态判定规则：说明里写明「待反馈」归为待客户反馈，写明「审核中」归为客户审核中，其余在办事项归为制作推进中。<br>
+      板块顺序固定为官号 → 官小号 → KOE → KOBOSS → 专项；板块内区分「运营发布」与「今日工作内容」。
+    </p>
+  </section>
+
+</div>
+
+<script>
+/* ============================================================
+   一、日报文本解析
+   ============================================================ */
+const SEC_ORDER = ['官号','官小号','KOE','KOBOSS','专项'];
+const SEC_ALIAS = { '官方账号':'官号','官号':'官号','官小号':'官小号','KOE':'KOE','KOBOSS':'KOBOSS','专项':'专项' };
+const CIRCLE = { '1️⃣':1,'2️⃣':2,'3️⃣':3,'4️⃣':4,'5️⃣':5,'6️⃣':6 };
+const NOTE_HEAD = /^(今日|明日|昨日|本周|下周|已|待|继续|预计|计划|初版|二版|剪辑|三期|实时|细化|客户|文案|朋友圈|推进|在办|数量|素材|发布|制作|梳理|撰写|提报|定稿|拍摄|确认|交接|切换|脚本|预售预热|\d)/;
+const DROP_SEG = /^(官号|官小号|KOE|KOBOSS|专项|KOE账号|KOBOSS账号|制作中|推进中|在推进|已完成|制作)$/i;
+const NOTE_SEG = /^(待反馈|待审核|审核中|待回复|朋友圈&媒体|朋友圈|媒体|官宣代言人)$/;
+const TAIL_NOTE = /(文案梳理|文案撰写|文案定稿|内容梳理|脚本提交)$/;
+const PUB_WORDS = /(运营发布|发布计划|发布排期)/;
+const TODO_WORDS = /(今日工作|to\s*do|todo|工作内容)/i;
+const OPENQ = '（(「『【[';
+const CLOSEQ = '）)」』】]';
+
+function cleanLine(s){
+  return s.replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{20E3}]/gu,'').trim();
+}
+function stripOrder(s){
+  return s.replace(/^[\(（]?\d+[\)）\.、,，:：]\s*/,'').replace(/^[-–—·•]\s*/,'').trim();
+}
+function splitWho(s){
+  return s.split(/[+＋、,，\/]/).map(v=>v.trim()).filter(Boolean);
+}
+/* 按「，」与合格的「-」「—」切分，括号内不切，数字区间 1-2 不切 */
+function smartSplit(s){
+  const out = []; let cur = '', depth = 0;
+  for (let i=0;i<s.length;i++){
+    const ch = s[i];
+    if (OPENQ.includes(ch)) depth++;
+    else if (CLOSEQ.includes(ch)) depth = Math.max(0, depth-1);
+    if (depth === 0){
+      if (ch === '，' || ch === ','){ out.push(cur); cur = ''; continue; }
+      if (ch === '-' || ch === '－' || ch === '—' || ch === '–'){
+        const p = s[i-1] || '', n = s[i+1] || '';
+        const num = c => /[0-9]/.test(c);
+        if (!(num(p) && num(n))){ out.push(cur); cur = ''; continue; }
+      }
+    }
+    cur += ch;
+  }
+  out.push(cur);
+  return out.map(v=>v.trim()).filter(Boolean);
+}
+/* 从一段文字里拆出 标题 / 说明 */
+function splitTitleNote(body){
+  let title = '', notes = [];
+
+  // 「xxx」开头：引号内是标题
+  const qm = body.match(/^[「『“"]([^」』”"]{2,})[」』”"](.*)$/);
+  if (qm){
+    title = qm[1].trim();
+    const rest = qm[2].trim().replace(/^[，,\-–—]/,'').trim();
+    if (rest) notes.push(rest);
+    return finishTN(title, notes);
+  }
+
+  // 「冒号」式：前段作标题
+  const cm = body.match(/^([^：:]{2,20})[：:]\s*(.+)$/);
+  let work = body;
+  if (cm){ title = cm[1].trim(); work = cm[2].trim(); }
+
+  let segs = smartSplit(work).filter(v=>!DROP_SEG.test(v));
+  if (!segs.length) return finishTN(title || body, notes);
+
+  if (!title){
+    title = segs[0];
+    segs = segs.slice(1);
+    // 日期前缀：11月5日转发王雷官宣文案 → 标题并入，日期归说明
+    if (segs.length){
+      const dm = segs[0].match(/^(\d{1,2}月\d{1,2}日)(.*)$/);
+      if (dm && dm[2].trim().length >= 4 && dm[2].trim().length <= 16){
+        title += '｜' + dm[2].trim();
+        notes.push(dm[1]);
+        segs = segs.slice(1);
+      } else if (!NOTE_HEAD.test(segs[0]) && !NOTE_SEG.test(segs[0])
+                 && (title.length + segs[0].length) <= 24){
+        title += '｜' + segs[0];
+        segs = segs.slice(1);
+      }
+    }
+  }
+  notes.push(...segs);
+  return finishTN(title, notes);
+}
+function finishTN(title, notes){
+  title = (title||'').replace(/^(KOE|KOBOSS)\s*账号\s*[-－—·]?\s*/i,'')
+                     .replace(/^账号\s*[-－—·]\s*/,'')
+                     .replace(/^(KOE|KOBOSS)(?=[\u4e00-\u9fa5])/i,'')
+                     .replace(/[「」『』]/g,'')
+                     .replace(/^[，,\-–—·]+|[，,\-–—·]+$/g,'')
+                     .trim();
+  // 标题末尾的「文案梳理」等动作词挪到说明
+  const tm = title.match(TAIL_NOTE);
+  if (tm && title.length - tm[0].length >= 6){
+    title = title.slice(0, title.length - tm[0].length).replace(/[，,\-–—·]+$/,'').trim();
+    notes.unshift(tm[0]);
+  }
+  const note = notes.filter(v=>v && !DROP_SEG.test(v)).join('，')
+                    .replace(/^[，,]+|[，,]+$/g,'');
+  return { title, note };
+}
+
+function parseReport(text){
+  const lines = text.split(/\r?\n/);
+  const sections = [];
+  let cur = null, group = 'todo', pj = null;
+  let date = '';
+
+  for (let raw of lines){
+    const line = raw.trim();
+    if (!line) continue;
+
+    if (!date){
+      const m = line.match(/(\d{1,2})\s*月\s*(\d{1,2})\s*日/);
+      if (m) date = `${+m[1]}月${+m[2]}日`;
+    }
+
+    // 板块行
+    let secName = null;
+    const cm = line.match(/^([1-6]️⃣)\s*(.*)$/);
+    if (cm){ secName = cleanLine(cm[2]); }
+    else {
+      const nm = line.match(/^[（(]?([1-6])[）)\.、]\s*(.{1,12}?)板块\s*$/);
+      if (nm) secName = nm[2];
+    }
+    if (secName !== null){
+      secName = secName.replace(/板块\s*$/,'').trim();
+      const key = SEC_ALIAS[secName] || secName;
+      cur = { name:key, items:[] };
+      sections.push(cur);
+      group = 'todo'; pj = null;
+      continue;
+    }
+    if (!cur) continue;
+
+    // 分组行：一、二、三……
+    const gm = line.match(/^[一二三四五六七八九十]+\s*[、.]\s*(.+)$/);
+    if (gm){
+      const g = cleanLine(gm[1]);
+      if (cur.name === '专项'){
+        pj = g.replace(/(专项|项目)\s*$/,'').trim();
+        group = 'todo';
+      } else if (PUB_WORDS.test(g)){
+        group = 'pub'; pj = null;
+      } else if (TODO_WORDS.test(g)){
+        group = 'todo'; pj = null;
+      } else {
+        group = 'todo'; pj = null;
+      }
+      continue;
+    }
+
+    if (/^暂无/.test(cleanLine(line))) continue;
+
+    // 事项行
+    const isItem = /^[（(]?\d+[）)\.、]/.test(line) || /^[-–—·•]\s*\S/.test(line);
+    if (!isItem) continue;
+
+    let body = stripOrder(cleanLine(line));
+    if (!body) continue;
+
+    // 责任人：最后一个破折号之后
+    let who = [];
+    const parts = body.split(/—{1,}|--+|――/);
+    if (parts.length > 1){
+      const tail = parts[parts.length-1].trim();
+      if (tail && tail.length <= 40){
+        who = splitWho(tail);
+        body = parts.slice(0,-1).join('—').trim();
+      }
+    }
+    body = body.replace(/[，,;；]\s*$/,'').trim();
+
+    const tn = splitTitleNote(body);
+    let title = tn.title, note = tn.note;
+    if (!title) title = body;
+
+    const all = body;
+    let st = 'doing';
+    if (/待反馈|待回复|待客户反馈/.test(all)) st = 'wait';
+    else if (/审核中|待审核/.test(all)) st = 'review';
+
+    cur.items.push({ sec:cur.name, t:title, note:note, who:who,
+                     st:st, pub:(group==='pub'), pj:(cur.name==='专项'? (pj||'') : '') });
+  }
+
+  // 固定板块顺序
+  const map = {};
+  sections.forEach(s=>{
+    if (!map[s.name]) map[s.name] = { name:s.name, items:[] };
+    map[s.name].items.push(...s.items);
+  });
+  const ordered = [];
+  SEC_ORDER.forEach(n=>{ if (map[n]) ordered.push(map[n]); });
+  Object.keys(map).forEach(n=>{ if (!SEC_ORDER.includes(n)) ordered.push(map[n]); });
+
+  return { date: date || '', sections: ordered };
+}
+
+/* ============================================================
+   二、Canvas 绘制（与 Python 版同一套版式）
+   ============================================================ */
+const W = 1200, PAD = 30, DPR = 2, LS = 0.35;
+const CO = {
+  bg:'#F4F8FD', ink:'#1C2740', ink2:'#4B5A74', mute:'#93A2B8',
+  line:'#E6EDF7', line2:'#F2F7FD',
+  doV:'#2B62DF', doL:'#EDF3FE',
+  pubV:'#E4620F', pubL:'#FDF0E6',
+  revV:'#E2A333', revL:'#FDF6E8',
+  tagB:'#EFF4FC', tagF:'#44618C', white:'#FFFFFF'
+};
+const ST_META = {
+  wait:   ['待客户反馈', CO.pubV, CO.pubL],
+  review: ['客户审核中', CO.revV, CO.revL],
+  doing:  ['制作推进中', CO.doV,  CO.doL]
+};
+const FAM = '"PingFang SC","HarmonyOS Sans SC","MiSans","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Hiragino Sans GB",sans-serif';
+
+let G = null; // 量算用 ctx
+
+function font(size, bold){ return `${bold?700:400} ${size}px ${FAM}`; }
+function tw(ctx, s, size, bold, ls=LS){
+  ctx.font = font(size, bold);
+  return ctx.measureText(s).width + ls * Math.max(0, s.length-1);
+}
+function drawText(ctx, s, x, y, size, color, bold, align='left', ls=LS){
+  ctx.font = font(size, bold);
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'top';
+  let total = tw(ctx, s, size, bold, ls);
+  let cx = x;
+  if (align === 'right') cx = x - total;
+  else if (align === 'center') cx = x - total/2;
+  for (const ch of s){
+    ctx.fillText(ch, cx, y);
+    cx += ctx.measureText(ch).width + ls;
+  }
+}
+function drawMid(ctx, s, cx, cy, size, color, bold, ls=LS){
+  ctx.font = font(size, bold);
+  drawText(ctx, s, cx, cy - size*0.62, size, color, bold, 'center', ls);
+}
+function wrapText(ctx, s, size, bold, maxw, maxlines=99, ls=LS){
+  if (!s) return [];
+  const lines = []; let cur = '';
+  for (const ch of s){
+    if (tw(ctx, cur+ch, size, bold, ls) > maxw && cur){
+      lines.push(cur); cur = ch;
+      if (lines.length === maxlines) break;
+    } else cur += ch;
+  }
+  if (cur && lines.length < maxlines) lines.push(cur);
+  const joined = lines.join('');
+  if (lines.length === maxlines && joined.length < s.length){
+    let last = lines[lines.length-1];
+    while (last && tw(ctx, last+'…', size, bold, ls) > maxw) last = last.slice(0,-1);
+    lines[lines.length-1] = last + '…';
+  } else if (lines.length > 1 && lines[lines.length-1].length === 1
+             && lines[lines.length-2].length > 2){
+    const p = lines[lines.length-2];
+    lines[lines.length-1] = p.slice(-1) + lines[lines.length-1];
+    lines[lines.length-2] = p.slice(0,-1);
+  }
+  return lines;
+}
+function rr(ctx, x, y, w, h, r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+function box(ctx, x, y, w, h, r, fill, stroke, lw=1){
+  rr(ctx, x, y, w, h, r);
+  if (fill){ ctx.fillStyle = fill; ctx.fill(); }
+  if (stroke){ ctx.strokeStyle = stroke; ctx.lineWidth = lw; ctx.stroke(); }
+}
+function line(ctx, x1, y1, x2, y2, color, lw=1){
+  ctx.strokeStyle = color; ctx.lineWidth = lw;
+  ctx.beginPath(); ctx.moveTo(x1, y1+.5); ctx.lineTo(x2, y2+.5); ctx.stroke();
+}
+function dot(ctx, cx, cy, r, fill){
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+  ctx.fillStyle = fill; ctx.fill();
+}
+
+const HEAD = 108, AROW = 37;
+const IW = (W - PAD*2 - 28 - 30) / 2;
+const NOTE_W = IW - 30;
+
+function titleOf(it){
+  if (!it.pj) return it.t;
+  if (it.t.startsWith(it.pj)) return it.t;
+  return it.pj + '｜' + it.t;
+}
+function whoOf(it){ return it.who.length ? it.who.join(' + ') : '—'; }
+function titleLines(ctx, it){
+  const ww = tw(ctx, whoOf(it), 12, false);
+  return wrapText(ctx, titleOf(it), 13.5, true, IW-30-ww-16, 2);
+}
+function cellH(ctx, it){
+  const tl = titleLines(ctx, it).length;
+  const nl = it.note ? wrapText(ctx, it.note, 11.5, false, NOTE_W-14, 2).length : 0;
+  return tl*22 + 2 + (nl ? nl*18 + 13 : 13);
+}
+function pairRows(ctx, items){
+  const out = [];
+  for (let i=0;i<items.length;i+=2){
+    const p = items.slice(i, i+2);
+    out.push([p[0], p[1]||null, Math.max(...p.map(q=>cellH(ctx,q)))]);
+  }
+  return out;
+}
+
+function buildModel(ctx, data){
+  const items = [];
+  data.sections.forEach(s=> s.items.forEach(it=> items.push(it)));
+  const byst = { wait:[], review:[], doing:[] };
+  items.forEach(it=> byst[it.st] ? byst[it.st].push(it) : byst.doing.push(it));
+
+  const A = [...byst.wait, ...byst.review].sort((a,b)=>{
+    const o = ['wait','review'].indexOf(a.st) - ['wait','review'].indexOf(b.st);
+    if (o) return o;
+    return SEC_ORDER.indexOf(a.sec) - SEC_ORDER.indexOf(b.sec);
+  });
+
+  const blocks = [];
+  let no = 0;
+  SEC_ORDER.concat(data.sections.map(s=>s.name).filter(n=>!SEC_ORDER.includes(n)))
+    .forEach(sec=>{
+      const rows = byst.doing.filter(i=>i.sec===sec);
+      if (!rows.length) return;
+      no += 1;
+      const subs = [];
+      const pubs = rows.filter(i=>i.pub), todos = rows.filter(i=>!i.pub);
+      if (pubs.length) subs.push(['运营发布', CO.pubV, pairRows(ctx,pubs)]);
+      if (todos.length) subs.push(['今日工作内容', CO.doV, pairRows(ctx,todos)]);
+      let h = 42 + subs.reduce((a,g)=> a + 27 + g[2].reduce((x,r)=>x+r[2],0) + 8, 0) + 6;
+      blocks.push({ sec, no, subs, h, cnt: rows.length });
+    });
+
+  const aBox = 14 + A.length * AROW + 12;
+  const bH = blocks.reduce((a,b)=>a+b.h+14, 0) - 14;
+  const H = Math.round(HEAD + 18 + 76 + 26 + 34 + aBox + 26 + 34 + bH + 28);
+  return { items, byst, A, blocks, aBox, H };
+}
+
+function render(canvas, data){
+  const probe = document.createElement('canvas').getContext('2d');
+  const M = buildModel(probe, data);
+  const { items, byst, A, blocks, aBox, H } = M;
+  const N = items.length;
+  if (!N) throw new Error('没解析出任何事项，请检查日报格式。');
+
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(DPR, DPR);
+  ctx.fillStyle = CO.bg; ctx.fillRect(0,0,W,H);
+
+  // 顶部
+  const g = ctx.createLinearGradient(0,0,W,0);
+  g.addColorStop(0,'#3355CE'); g.addColorStop(1,'#5083F2');
+  ctx.fillStyle = g; ctx.fillRect(0,0,W,HEAD);
+  drawText(ctx, '猛士汽车 · 日报进度看板', PAD, 26, 29, CO.white, true);
+  const wd = weekdayOf(data.date);
+  drawText(ctx, `${data.date}${wd?' · '+wd:''}　｜　在跟进事项共 ${N} 项，覆盖 ${new Set(items.map(i=>i.sec)).size} 大板块`,
+           PAD, 70, 14.5, '#D5E4FD', false);
+
+  // 状态总览
+  let y = HEAD + 18;
+  box(ctx, PAD, y, W-PAD*2, 76, 12, CO.white, CO.line);
+  const bx0 = PAD+18, bx1 = W-PAD-18, barY = y+48;
+  box(ctx, bx0, barY, bx1-bx0, 12, 6, CO.line2, null);
+  let cx = bx0;
+  ['wait','review','doing'].forEach(k=>{
+    const w = (bx1-bx0) * byst[k].length / N;
+    if (w > 0){ box(ctx, cx, barY, w, 12, k==='review'?0:6, ST_META[k][1], null); }
+    cx += w;
+  });
+  const segW = (bx1-bx0)/3;
+  ['wait','review','doing'].forEach((k,gi)=>{
+    const [lb,col] = ST_META[k], n = byst[k].length;
+    const x = bx0 + gi*segW;
+    box(ctx, x, y+19, 10, 10, 2, col, null);
+    drawText(ctx, lb, x+17, y+16, 13, CO.ink2, true);
+    const tx = x + 17 + tw(ctx, lb, 13, true) + 9;
+    drawText(ctx, String(n), tx, y+13, 19, col, true);
+    drawText(ctx, `项 · 占 ${Math.round(n/N*100)}%`,
+             tx + tw(ctx,String(n),19,true) + 3, y+19, 12, CO.mute, false);
+  });
+  y += 76 + 26;
+
+  // A 区
+  box(ctx, PAD, y+2, 3, 18, 2, CO.pubV, null);
+  drawText(ctx, '待客户反馈 / 审核', PAD+12, y, 19, CO.ink, true);
+  y += 34;
+  box(ctx, PAD, y, W-PAD*2, aBox, 12, CO.white, CO.line);
+  let ry = y + 14;
+  // 列宽固定，保证状态标 / 板块标 / 事项 / 说明 / 责任人逐列对齐
+  const stW  = Math.max(...A.map(i=>tw(ctx, ST_META[i.st][0], 11, true))) + 16;
+  const secW = Math.max(...A.map(i=>tw(ctx, i.sec, 11, true))) + 16;
+  const whoW = Math.max(...A.map(i=>tw(ctx, i.who.join(' + '), 12, false)));
+  const X_ST = PAD + 16;
+  const X_SEC = X_ST + stW + 9;
+  const X_T = X_SEC + secW + 14;
+  const avail = (W - PAD - 16 - whoW - 24) - X_T;
+  const maxT = Math.max(...A.map(i=>tw(ctx, titleOf(i), 13.5, true)));
+  const notes = A.filter(i=>i.note).map(i=>tw(ctx, i.note, 12, false));
+  const maxN = notes.length ? Math.max(...notes) : 0;
+  const X_NOTE = X_T + Math.min(Math.max(maxT + 24, 306), Math.max(306, avail - maxN));
+  const NOTE_MAX = W - PAD - 16 - whoW - 24 - X_NOTE;
+  A.forEach((it,n)=>{
+    const [lb,col,bg] = ST_META[it.st];
+    box(ctx, X_ST, ry+5, stW, 20, 5, bg, null);
+    drawMid(ctx, lb, X_ST+stW/2, ry+15, 11, col, true);
+    box(ctx, X_SEC, ry+5, secW, 20, 5, CO.tagB, null);
+    drawMid(ctx, it.sec, X_SEC+secW/2, ry+15, 11, CO.tagF, true);
+    const tt = wrapText(ctx, titleOf(it), 13.5, true, X_NOTE-X_T-18, 1)[0] || '';
+    drawText(ctx, tt, X_T, ry+7, 13.5, CO.ink, true);
+    if (it.note){
+      const nt = wrapText(ctx, it.note, 12, false, NOTE_MAX, 1)[0] || '';
+      drawText(ctx, nt, X_NOTE, ry+9, 12, CO.mute, false);
+    }
+    drawText(ctx, it.who.join(' + '), W-PAD-16, ry+8, 12, CO.ink2, false, 'right');
+    if (n < A.length-1) line(ctx, X_ST, ry+AROW-5, W-PAD-16, ry+AROW-5, CO.line2);
+    ry += AROW;
+  });
+  y += aBox + 26;
+
+  // B 区
+  box(ctx, PAD, y+2, 3, 18, 2, CO.doV, null);
+  drawText(ctx, '制作推进中', PAD+12, y, 19, CO.ink, true);
+  y += 34;
+
+  blocks.forEach(b=>{
+    box(ctx, PAD, y, W-PAD*2, b.h, 12, CO.white, CO.line);
+    rr(ctx, PAD, y, W-PAD*2, 42, 12); ctx.fillStyle = '#F8FBFF'; ctx.fill();
+    ctx.fillRect(PAD, y+30, W-PAD*2, 12);
+    line(ctx, PAD, y+42, W-PAD, y+42, CO.line);
+    dot(ctx, PAD+26, y+21, 10.5, CO.doV);
+    drawMid(ctx, String(b.no), PAD+26, y+21, 11, CO.white, true);
+    drawText(ctx, b.sec, PAD+45, y+12, 15, CO.ink, true);
+    drawText(ctx, `${b.cnt} 项`, W-PAD-18, y+14, 12.5, CO.mute, true, 'right');
+
+    let yy = y + 48;
+    b.subs.forEach(([gname, gcol, grows])=>{
+      box(ctx, PAD+30, yy+3, 3, 14, 1, gcol, null);
+      drawText(ctx, gname, PAD+43, yy, 12.5, gcol, true);
+      const cg = grows.reduce((a,r)=>a + (r[0]?1:0) + (r[1]?1:0), 0);
+      drawText(ctx, `${cg} 项`, PAD+43 + tw(ctx,gname,12.5,true) + 8, yy+2, 11, CO.mute, false);
+      yy += 27;
+      let k = 0;
+      grows.forEach(([left,right,rh])=>{
+        [left,right].forEach((it,ci)=>{
+          if (!it) return;
+          const cxx = PAD + 16 + ci * (IW + 30);
+          dot(ctx, cxx+10, yy+12, 9, CO.doL);
+          drawMid(ctx, String(k+ci+1), cxx+10, yy+12, 9.5, '#4472C9', true);
+          const whos = whoOf(it);
+          const tls = titleLines(ctx, it);
+          tls.forEach((ln,li)=> drawText(ctx, ln, cxx+27, yy+3+li*22, 13.5, CO.ink, true));
+          drawText(ctx, whos, cxx+IW-6, yy+4, 12, CO.mute, false, 'right');
+          if (it.note){
+            wrapText(ctx, it.note, 11.5, false, NOTE_W-14, 2)
+              .forEach((ln,li)=> drawText(ctx, ln, cxx+27, yy+3+tls.length*22+li*18, 11.5, CO.ink2, false));
+          }
+        });
+        k += 2; yy += rh;
+      });
+      yy += 8;
+    });
+    y += b.h + 14;
+  });
+
+  return { W, H };
+}
+
+function weekdayOf(dateStr){
+  const m = (dateStr||'').match(/(\d{1,2})月(\d{1,2})日/);
+  if (!m) return '';
+  const now = new Date();
+  const d = new Date(now.getFullYear(), +m[1]-1, +m[2]);
+  return '星期' + '日一二三四五六'[d.getDay()];
+}
+
+/* ============================================================
+   三、页面交互
+   ============================================================ */
+const DEMO = `11月3日-日报
+
+1️⃣官号板块
+一、运营发布
+1. 🟡11月门店及POP展览长图-官号-制作中——易思甜+镇可
+二、今日工作内容（to do list）
+1. 🟡ultimate大师版造型篇长图文案梳理——吴思琪+镇可
+2. 🟡11月官号平台评论区巡视——实时巡视——吴思琪、易思甜+曹静雯、罗垚
+
+2️⃣官小号板块
+一、运营发布
+1. 🟡【瓜评人】11月商超户外广告长图 （12城LED）-制作中——吴思琪+王丹萍
+-🟡整理本周发布排期
+二、今日工作内容（to do list）
+1. 🟡撞车二创视频，今日产出初稿——季舒婷+余如冰
+2. 🟡小猫系列视频，今日和客户对接场景，并明日出脚本——谢京京+任莹欣
+3. 🟡AI热点整理，今日和客户对接，规划猛萌开越野账号发布内容——谢京京+任莹欣
+4. 🟡排行榜竞对图，初版审核中，规划28套已完成8套待完成20套——季舒婷+崔子晔
+5. 🟡产品点详解图，初版审核中，规划2套已完成初版制图，客户已反馈，素材调整中——季舒婷+崔子晔
+6. 🟡猛士X700 VS 钛7车型竞对图产品点制作，已提交二改对比逻辑图，客户审核中——陈浩+崔子晔
+7. 🟡荔波相关话题，官小号内容策划，今日完成数量评估，并筹备二阶段创意——季舒婷+余如冰
+8. 🟡M817预售阶段，官小号内容规划——季舒婷+余如冰
+9. 🟡账号迁移换绑、扫码，今日完成全部闭环——余如冰
+10. 🟡11月商超户外广告长图 （12城LED），发布文案撰写——吴思琪+王丹萍+文案
+
+3️⃣KOE板块
+一、发布计划
+暂无
+二、今日工作内容（to do list）
+1. 🟡KOE账号-智野猛士，M817 Ultimate内饰讲解视频，剪辑初版已提交，待反馈——黄晶晶+余挽涛
+2. 🟡KOE账号-猛友请上车，X700 AI调音魔方、双联屏、M817手机APP数字涂装功能，三期内容脚本提交——黄晶晶+余挽涛
+3. 🟡M817 Ultimate性能讲解视频大纲，继续推进，周三提交内容大纲——黄晶晶+余挽涛
+4. 🟡KOE猛友请上车、智野猛士完成账号交接、运营切换——黄晶晶+余挽涛
+
+4️⃣KOBOSS板块
+一、发布计划
+暂无
+二、今日工作内容（to do list）
+1. 🟡万总视频月度规划：预售预热视频（已取消，改发微博）、越野视频、1-2支X700场景化视频-推进中，预计11.4提交——张合+李国新
+2. 🟡KOBOSS账号-猛士汽车万良渝-11月5日转发王雷官宣文案（官宣代言人）——张合+李国新
+3. 🟡KOBOSS账号-猛士汽车万良渝-11月6日预售微博发布文案（久等了，在现有脚本基础上浓缩）——张合+李国新
+4. 🟡KOBOSS账号-东风汽车周峰-11月6日预售微博发布文案——张合+李国新
+
+5️⃣专项板块
+一、X700拆车专项
+1. 🟡X700拆车视频拍摄，今日17:00-21:00直播、拍摄，拆车视频周五定稿——陈浩+余挽涛
+2. 🟡X700媒体拆车解读长图文案梳理-待反馈——陈浩+李国新
+3. 🟡老章拆车直播预告海报-朋友圈&媒体-待反馈——陈浩+李国新
+二、品牌视频
+1. 案例及推进计划，今日提报——陈浩+李国新
+三、蓝天救援队项目
+1. 🟡方案提交，细化脚本中，计划11月4日提交——张合+陈庆祥
+四、无锡拍摄项目
+1. 🟡「猛士917颁奖长图文案」客户审核中，今日完成文案定稿，推进长图制作——彭沁雯+崔子晔
+2. 🟡 5号线下拍摄踩点流程确认——彭沁雯+崔子晔
+五、珠海航展项目
+1. 🟡航展方案策划提交——京京+曹晨鹏`;
+
+const $ = id => document.getElementById(id);
+let model = null;
+
+function showMsg(t, err){ const m = $('msg'); m.textContent = t||''; m.className = 'msg' + (err?' err':''); }
+
+function buildTable(){
+  const rows = [];
+  model.sections.forEach(s=> s.items.forEach(it=> rows.push(it)));
+  let html = '<table><thead><tr><th style="width:84px">板块</th><th style="width:96px">分组</th>'
+           + '<th style="width:104px">状态</th><th style="width:86px">所属专项</th>'
+           + '<th>事项</th><th>说明</th><th style="width:150px">责任人</th><th style="width:48px"></th></tr></thead><tbody>';
+  rows.forEach((it,i)=>{
+    html += `<tr data-i="${i}">
+      <td><input data-f="sec" value="${esc(it.sec)}"></td>
+      <td><select data-f="pub"><option value="0"${it.pub?'':' selected'}>今日工作内容</option><option value="1"${it.pub?' selected':''}>运营发布</option></select></td>
+      <td><select data-f="st">
+        <option value="doing"${it.st==='doing'?' selected':''}>制作推进中</option>
+        <option value="wait"${it.st==='wait'?' selected':''}>待客户反馈</option>
+        <option value="review"${it.st==='review'?' selected':''}>客户审核中</option></select></td>
+      <td><input data-f="pj" value="${esc(it.pj||'')}"></td>
+      <td><input data-f="t" value="${esc(it.t)}"></td>
+      <td><input data-f="note" value="${esc(it.note)}"></td>
+      <td><input data-f="who" value="${esc(it.who.join(' + '))}"></td>
+      <td class="del"><button type="button">删</button></td>
+    </tr>`;
+  });
+  html += '</tbody></table>';
+  $('tableWrap').innerHTML = html;
+  $('tableWrap').querySelectorAll('td.del button').forEach(b=>{
+    b.onclick = e=>{ e.target.closest('tr').remove(); };
+  });
+  model._flat = rows;
+}
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+function collectTable(){
+  const trs = $('tableWrap').querySelectorAll('tbody tr');
+  if (!trs.length) return model;
+  const bySec = {};
+  trs.forEach(tr=>{
+    const g = f => tr.querySelector(`[data-f="${f}"]`).value.trim();
+    const sec = g('sec') || '其他';
+    const it = { sec, t:g('t'), note:g('note'),
+                 who: g('who').split(/[+＋、,，\/]/).map(v=>v.trim()).filter(Boolean),
+                 st: g('st'), pub: g('pub')==='1', pj: g('pj') };
+    if (!it.t) return;
+    (bySec[sec] = bySec[sec] || []).push(it);
+  });
+  const sections = Object.keys(bySec).map(n=>({ name:n, items:bySec[n] }));
+  return { date: model.date, sections };
+}
+
+function paint(data){
+  try{
+    const r = render($('cv'), data);
+    $('previewCard').style.display = '';
+    $('size').textContent = `输出尺寸 ${r.W*DPR} × ${r.H*DPR} 像素`;
+    showMsg('生成完成。', false);
+    if (IS_MOBILE) showImage(); else hideImage();
+  }catch(e){
+    showMsg(e.message || '生成失败', true);
+  }
+}
+
+function run(){
+  const txt = $('src').value.trim();
+  if (!txt){ showMsg('先把日报粘进来。', true); return; }
+  model = parseReport(txt);
+  const all = model.sections.reduce((a,s)=>a+s.items.length, 0);
+  if (!all){ showMsg('没解析出事项，请确认板块行形如「1️⃣官号板块」、事项行形如「1. 事项——责任人」。', true); return; }
+  const flat = [];
+  model.sections.forEach(s=> s.items.forEach(i=> flat.push(i)));
+  const cw = flat.filter(i=>i.st==='wait').length, cr = flat.filter(i=>i.st==='review').length;
+  $('stat').innerHTML = `
+    <div><b>${all}</b>事项总数</div>
+    <div><b>${model.sections.length}</b>板块</div>
+    <div><b>${flat.filter(i=>i.pub).length}</b>运营发布</div>
+    <div><b>${cw}</b>待客户反馈</div>
+    <div><b>${cr}</b>客户审核中</div>
+    <div><b>${flat.length-cw-cr}</b>制作推进中</div>`;
+  $('resultCard').style.display = '';
+  buildTable();
+  paint(model);
+}
+
+$('go').onclick = run;
+$('regen').onclick = ()=> paint(collectTable());
+$('demo').onclick = ()=>{ $('src').value = DEMO; run(); };
+$('clr').onclick = ()=>{
+  $('src').value = ''; showMsg('');
+  $('resultCard').style.display = 'none';
+  $('previewCard').style.display = 'none';
+};
+const IS_MOBILE = /iPhone|iPad|iPod|Android|HarmonyOS/i.test(navigator.userAgent)
+                 || window.innerWidth <= 720;
+
+function fileName(){
+  const m = (model && model.date || '').match(/(\d{1,2})月(\d{1,2})日/);
+  const tag = m ? String(m[1]).padStart(2,'0') + String(m[2]).padStart(2,'0') : 'export';
+  return `猛士日报看板_${tag}.png`;
+}
+function showImage(){
+  $('pv').classList.add('on');
+  $('saveTip').classList.add('on');
+  $('showimg').textContent = '隐藏图片';
+}
+function hideImage(){
+  $('pv').classList.remove('on');
+  $('saveTip').classList.remove('on');
+  $('showimg').textContent = '显示图片';
+}
+$('showimg').onclick = ()=>{
+  $('pv').classList.contains('on') ? hideImage() : showImage();
+};
+$('dl').onclick = ()=>{
+  const cv = $('cv');
+  // iOS Safari 对 a[download] 支持不稳，直接把图亮出来让用户长按保存
+  const iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
+              || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (iOS){
+    showImage();
+    showMsg('iPhone 请长按下面的图片，选「存储到照片」。', false);
+    $('pv').scrollIntoView({ behavior:'smooth', block:'start' });
+    return;
+  }
+  cv.toBlob(b=>{
+    if (!b){ showImage(); showMsg('浏览器不支持直接下载，请长按图片保存。', true); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(b);
+    a.download = fileName();
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 4000);
+    showMsg('已下载。', false);
+  }, 'image/png');
+};
+
+// 首次打开直接演示一遍
+document.fonts && document.fonts.ready ? document.fonts.ready.then(()=>{ $('src').value = DEMO; run(); })
+                                       : (window.onload = ()=>{ $('src').value = DEMO; run(); });
+</script>
+</body>
+</html>
