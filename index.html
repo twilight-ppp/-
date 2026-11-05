@@ -59,7 +59,8 @@
   td.del button{ padding:4px 9px; font-size:11.5px; background:#FDF0E6; color:#C2410C; }
   .preview{ display:none; background:#fff; border:1px solid #E6EDF7; border-radius:12px; padding:10px; margin-top:14px; }
   .preview.on{ display:block; }
-  .preview canvas{ width:100%; height:auto; display:block; border-radius:6px; }
+  .preview canvas{ display:none; }
+  .preview img{ width:100%; height:auto; display:block; border-radius:6px; -webkit-touch-callout:default; }
   .saveTip{ display:none; margin:10px 0 0; font-size:12.5px; color:#8A98AE; }
   .saveTip.on{ display:block; }
   @media (max-width:720px){
@@ -112,14 +113,14 @@
 
   <section class="card" id="previewCard" style="display:none">
     <h2>第三步 · 下载图片</h2>
-    <p class="hint">图片已在后台生成好，按 2 倍分辨率导出，发微信群不会糊。电脑上点「下载 PNG」；手机上点「显示图片」后长按保存到相册。</p>
+    <p class="hint">电脑上点「下载 PNG」直接存文件；手机上点「下载 PNG」会把图显示出来，长按即可保存到相册。</p>
     <div class="row" style="margin:0">
       <button class="primary" id="dl">下载 PNG</button>
       <button class="ghost" id="showimg">显示图片</button>
       <span class="msg" id="size"></span>
     </div>
-    <p class="saveTip" id="saveTip">手机上长按下面的图片，选「存储到照片 / 保存图片」即可存进相册。</p>
-    <div class="preview" id="pv"><canvas id="cv"></canvas></div>
+    <p class="saveTip" id="saveTip">长按下面的图片 → 选「存储到照片 / 保存图片」，即可存进手机相册。</p>
+    <div class="preview" id="pv"><canvas id="cv"></canvas><img id="pvimg" alt="日报看板"></div>
     <p class="foot">
       状态判定规则：说明里写明「待反馈」归为待客户反馈，写明「审核中」归为客户审核中，其余在办事项归为制作推进中。<br>
       板块顺序固定为官号 → 官小号 → KOE → KOBOSS → 专项；板块内区分「运营发布」与「今日工作内容」。
@@ -332,7 +333,9 @@ function parseReport(text){
 /* ============================================================
    二、Canvas 绘制（与 Python 版同一套版式）
    ============================================================ */
-const W = 1200, PAD = 30, DPR = 2, LS = 0.35;
+const W = 1200, PAD = 30, LS = 0.35;
+const MAXPX = 4000;   // 单边上限，iOS Safari 超过约 4096 会画不出来
+let DPR = 2;
 const CO = {
   bg:'#F4F8FD', ink:'#1C2740', ink2:'#4B5A74', mute:'#93A2B8',
   line:'#E6EDF7', line2:'#F2F7FD',
@@ -487,7 +490,8 @@ function render(canvas, data){
   const N = items.length;
   if (!N) throw new Error('没解析出任何事项，请检查日报格式。');
 
-  canvas.width = W * DPR; canvas.height = H * DPR;
+  DPR = Math.max(1, Math.min(2, MAXPX / H));   // 太长的日报自动降采样，保证能导出
+  canvas.width = Math.round(W * DPR); canvas.height = Math.round(H * DPR);
   const ctx = canvas.getContext('2d');
   ctx.scale(DPR, DPR);
   ctx.fillStyle = CO.bg; ctx.fillRect(0,0,W,H);
@@ -681,6 +685,9 @@ const DEMO = `11月3日-日报
 
 const $ = id => document.getElementById(id);
 let model = null;
+const IS_MOBILE = /iPhone|iPad|iPod|Android|HarmonyOS/i.test(navigator.userAgent)
+                  || window.innerWidth <= 720
+                  || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
 function showMsg(t, err){ const m = $('msg'); m.textContent = t||''; m.className = 'msg' + (err?' err':''); }
 
@@ -772,15 +779,19 @@ $('clr').onclick = ()=>{
   $('resultCard').style.display = 'none';
   $('previewCard').style.display = 'none';
 };
-const IS_MOBILE = /iPhone|iPad|iPod|Android|HarmonyOS/i.test(navigator.userAgent)
-                 || window.innerWidth <= 720;
-
 function fileName(){
   const m = (model && model.date || '').match(/(\d{1,2})月(\d{1,2})日/);
   const tag = m ? String(m[1]).padStart(2,'0') + String(m[2]).padStart(2,'0') : 'export';
   return `猛士日报看板_${tag}.png`;
 }
 function showImage(){
+  const cv = $('cv'), img = $('pvimg');
+  try{
+    img.src = cv.toDataURL('image/png');
+  }catch(e){
+    showMsg('图片导出失败：' + e.message, true);
+    return;
+  }
   $('pv').classList.add('on');
   $('saveTip').classList.add('on');
   $('showimg').textContent = '隐藏图片';
@@ -795,13 +806,11 @@ $('showimg').onclick = ()=>{
 };
 $('dl').onclick = ()=>{
   const cv = $('cv');
-  // iOS Safari 对 a[download] 支持不稳，直接把图亮出来让用户长按保存
-  const iOS = /iPhone|iPad|iPod/i.test(navigator.userAgent)
-              || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  if (iOS){
+  // 手机一律走「显示图片 + 长按保存」：canvas 长按存不了，a[download] 在 iOS/微信里也不灵
+  if (IS_MOBILE){
     showImage();
-    showMsg('iPhone 请长按下面的图片，选「存储到照片」。', false);
-    $('pv').scrollIntoView({ behavior:'smooth', block:'start' });
+    showMsg('长按下面的图片，选「存储到照片 / 保存图片」。', false);
+    setTimeout(()=> $('pv').scrollIntoView({ behavior:'smooth', block:'start' }), 80);
     return;
   }
   cv.toBlob(b=>{
