@@ -122,7 +122,7 @@
     <p class="saveTip" id="saveTip">长按下面的图片 → 选「存储到照片 / 保存图片」，即可存进手机相册。</p>
     <div class="preview" id="pv"><canvas id="cv"></canvas><img id="pvimg" alt="日报看板"></div>
     <p class="foot">
-      状态判定规则：说明里写明「待反馈」归为待客户反馈，写明「审核中」归为客户审核中，其余在办事项归为制作推进中。<br>
+      状态判定规则：说明里写明「待反馈」归为待反馈，写明「审核中」归为审核中，其余在办事项归为制作推进中。<br>
       板块顺序固定为官号 → 官小号 → KOE → KOBOSS → 专项；板块内区分「运营发布」与「今日工作内容」。
     </p>
   </section>
@@ -345,15 +345,15 @@ const CO = {
   tagB:'#EFF4FC', tagF:'#44618C', white:'#FFFFFF'
 };
 const ST_META = {
-  wait:   ['待客户反馈', CO.pubV, CO.pubL],
-  review: ['客户审核中', CO.revV, CO.revL],
+  wait:   ['待反馈', CO.pubV, CO.pubL],
+  review: ['审核中', CO.revV, CO.revL],
   doing:  ['制作推进中', CO.doV,  CO.doL]
 };
 const FAM = '"PingFang SC","HarmonyOS Sans SC","MiSans","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei","Hiragino Sans GB",sans-serif';
 
 let G = null; // 量算用 ctx
 
-function font(size, bold){ return `${bold?700:400} ${size}px ${FAM}`; }
+function font(size, bold){ return `${bold?700:400} ${size*FS}px ${FAM}`; }
 function tw(ctx, s, size, bold, ls=LS){
   ctx.font = font(size, bold);
   return ctx.measureText(s).width + ls * Math.max(0, s.length-1);
@@ -372,8 +372,7 @@ function drawText(ctx, s, x, y, size, color, bold, align='left', ls=LS){
   }
 }
 function drawMid(ctx, s, cx, cy, size, color, bold, ls=LS){
-  ctx.font = font(size, bold);
-  drawText(ctx, s, cx, cy - size*0.62, size, color, bold, 'center', ls);
+  drawText(ctx, s, cx, cy - size*FS*0.62, size, color, bold, 'center', ls);
 }
 function wrapText(ctx, s, size, bold, maxw, maxlines=99, ls=LS){
   if (!s) return [];
@@ -422,7 +421,17 @@ function dot(ctx, cx, cy, r, fill){
   ctx.fillStyle = fill; ctx.fill();
 }
 
-const HEAD = 108, AROW = 37;
+let FS = 1, SP = 1, HEAD = 108, AROW = 37;
+const sp = v => Math.round(v * SP);
+function setScale(n){
+  // 事项少 → 字号放大、留白收紧；事项多 → 字号收小、留白略放
+  if (n <= 20)      { FS = 1.18; SP = 0.90; }
+  else if (n <= 26) { FS = 1.12; SP = 0.93; }
+  else if (n <= 32) { FS = 1.06; SP = 0.96; }
+  else if (n <= 40) { FS = 1.00; SP = 1.00; }
+  else              { FS = 0.94; SP = 1.00; }
+  HEAD = sp(108); AROW = sp(37);
+}
 const IW = (W - PAD*2 - 28 - 30) / 2;
 const NOTE_W = IW - 30;
 
@@ -439,7 +448,7 @@ function titleLines(ctx, it){
 function cellH(ctx, it){
   const tl = titleLines(ctx, it).length;
   const nl = it.note ? wrapText(ctx, it.note, 11.5, false, NOTE_W-14, 2).length : 0;
-  return tl*22 + 2 + (nl ? nl*18 + 13 : 13);
+  return tl*Math.round(22*FS) + 2 + (nl ? nl*Math.round(18*FS) + sp(13) : sp(13));
 }
 function pairRows(ctx, items){
   const out = [];
@@ -473,18 +482,20 @@ function buildModel(ctx, data){
       const pubs = rows.filter(i=>i.pub), todos = rows.filter(i=>!i.pub);
       if (pubs.length) subs.push(['运营发布', CO.pubV, pairRows(ctx,pubs)]);
       if (todos.length) subs.push(['今日工作内容', CO.doV, pairRows(ctx,todos)]);
-      let h = 42 + subs.reduce((a,g)=> a + 27 + g[2].reduce((x,r)=>x+r[2],0) + 8, 0) + 6;
+      let h = sp(42) + subs.reduce((a,g)=> a + sp(27) + g[2].reduce((x,r)=>x+r[2],0) + sp(8), 0) + sp(6);
       blocks.push({ sec, no, subs, h, cnt: rows.length });
     });
 
-  const aBox = 14 + A.length * AROW + 12;
-  const bH = blocks.reduce((a,b)=>a+b.h+14, 0) - 14;
-  const H = Math.round(HEAD + 18 + 76 + 26 + 34 + aBox + 26 + 34 + bH + 28);
+  const aBox = sp(14) + A.length * AROW + sp(12);
+  const bH = blocks.reduce((a,b)=>a+b.h+sp(14), 0) - sp(14);
+  const H = Math.round(HEAD + sp(18) + sp(76) + sp(26) + sp(34) + aBox + sp(26) + sp(34) + bH + sp(28));
   return { items, byst, A, blocks, aBox, H };
 }
 
 function render(canvas, data){
   const probe = document.createElement('canvas').getContext('2d');
+  let n0 = 0; data.sections.forEach(s=> n0 += s.items.length);
+  setScale(n0);
   const M = buildModel(probe, data);
   const { items, byst, A, blocks, aBox, H } = M;
   const N = items.length;
@@ -500,15 +511,16 @@ function render(canvas, data){
   const g = ctx.createLinearGradient(0,0,W,0);
   g.addColorStop(0,'#3355CE'); g.addColorStop(1,'#5083F2');
   ctx.fillStyle = g; ctx.fillRect(0,0,W,HEAD);
-  drawText(ctx, '猛士汽车 · 日报进度看板', PAD, 26, 29, CO.white, true);
+  drawText(ctx, '猛士汽车 · 日报进度看板', PAD, sp(26), 29, CO.white, true);
   const wd = weekdayOf(data.date);
   drawText(ctx, `${data.date}${wd?' · '+wd:''}　｜　在跟进事项共 ${N} 项，覆盖 ${new Set(items.map(i=>i.sec)).size} 大板块`,
-           PAD, 70, 14.5, '#D5E4FD', false);
+           PAD, sp(70), 14.5, '#D5E4FD', false);
 
   // 状态总览
-  let y = HEAD + 18;
-  box(ctx, PAD, y, W-PAD*2, 76, 12, CO.white, CO.line);
-  const bx0 = PAD+18, bx1 = W-PAD-18, barY = y+48;
+  let y = HEAD + sp(18);
+  const OV_H = sp(76);
+  box(ctx, PAD, y, W-PAD*2, OV_H, 12, CO.white, CO.line);
+  const bx0 = PAD+18, bx1 = W-PAD-18, barY = y+sp(48);
   box(ctx, bx0, barY, bx1-bx0, 12, 6, CO.line2, null);
   let cx = bx0;
   ['wait','review','doing'].forEach(k=>{
@@ -520,21 +532,21 @@ function render(canvas, data){
   ['wait','review','doing'].forEach((k,gi)=>{
     const [lb,col] = ST_META[k], n = byst[k].length;
     const x = bx0 + gi*segW;
-    box(ctx, x, y+19, 10, 10, 2, col, null);
-    drawText(ctx, lb, x+17, y+16, 13, CO.ink2, true);
+    box(ctx, x, y+sp(19), 10, 10, 2, col, null);
+    drawText(ctx, lb, x+17, y+sp(16), 13, CO.ink2, true);
     const tx = x + 17 + tw(ctx, lb, 13, true) + 9;
-    drawText(ctx, String(n), tx, y+13, 19, col, true);
+    drawText(ctx, String(n), tx, y+sp(13), 19, col, true);
     drawText(ctx, `项 · 占 ${Math.round(n/N*100)}%`,
-             tx + tw(ctx,String(n),19,true) + 3, y+19, 12, CO.mute, false);
+             tx + tw(ctx,String(n),19,true) + 3, y+sp(19), 12, CO.mute, false);
   });
-  y += 76 + 26;
+  y += OV_H + sp(26);
 
   // A 区
-  box(ctx, PAD, y+2, 3, 18, 2, CO.pubV, null);
-  drawText(ctx, '待客户反馈 / 审核', PAD+12, y, 19, CO.ink, true);
-  y += 34;
+  box(ctx, PAD, y+2, 3, Math.round(20*FS), 2, CO.pubV, null);
+  drawText(ctx, '待反馈 / 审核', PAD+12, y, 19, CO.ink, true);
+  y += sp(34);
   box(ctx, PAD, y, W-PAD*2, aBox, 12, CO.white, CO.line);
-  let ry = y + 14;
+  let ry = y + sp(14);
   // 列宽固定，保证状态标 / 板块标 / 事项 / 说明 / 责任人逐列对齐
   const stW  = Math.max(...A.map(i=>tw(ctx, ST_META[i.st][0], 11, true))) + 16;
   const secW = Math.max(...A.map(i=>tw(ctx, i.sec, 11, true))) + 16;
@@ -550,65 +562,71 @@ function render(canvas, data){
   const NOTE_MAX = W - PAD - 16 - whoW - 24 - X_NOTE;
   A.forEach((it,n)=>{
     const [lb,col,bg] = ST_META[it.st];
-    box(ctx, X_ST, ry+5, stW, 20, 5, bg, null);
-    drawMid(ctx, lb, X_ST+stW/2, ry+15, 11, col, true);
-    box(ctx, X_SEC, ry+5, secW, 20, 5, CO.tagB, null);
-    drawMid(ctx, it.sec, X_SEC+secW/2, ry+15, 11, CO.tagF, true);
+    const bh = Math.round(20*FS);
+    const by = ry + (AROW - sp(12) - bh)/2;
+    box(ctx, X_ST, by, stW, bh, 5, bg, null);
+    drawMid(ctx, lb, X_ST+stW/2, by+bh/2, 11, col, true);
+    box(ctx, X_SEC, by, secW, bh, 5, CO.tagB, null);
+    drawMid(ctx, it.sec, X_SEC+secW/2, by+bh/2, 11, CO.tagF, true);
+    const ty = by + bh/2 - 13.5*FS*0.62;
     const tt = wrapText(ctx, titleOf(it), 13.5, true, X_NOTE-X_T-18, 1)[0] || '';
-    drawText(ctx, tt, X_T, ry+7, 13.5, CO.ink, true);
+    drawText(ctx, tt, X_T, ty, 13.5, CO.ink, true);
     if (it.note){
       const nt = wrapText(ctx, it.note, 12, false, NOTE_MAX, 1)[0] || '';
-      drawText(ctx, nt, X_NOTE, ry+9, 12, CO.mute, false);
+      drawText(ctx, nt, X_NOTE, ty+1.5, 12, CO.mute, false);
     }
-    drawText(ctx, it.who.join(' + '), W-PAD-16, ry+8, 12, CO.ink2, false, 'right');
-    if (n < A.length-1) line(ctx, X_ST, ry+AROW-5, W-PAD-16, ry+AROW-5, CO.line2);
+    drawText(ctx, it.who.join(' + '), W-PAD-16, ty+1, 12, CO.ink2, false, 'right');
+    if (n < A.length-1) line(ctx, X_ST, ry+AROW-sp(5), W-PAD-16, ry+AROW-sp(5), CO.line2);
     ry += AROW;
   });
-  y += aBox + 26;
+  y += aBox + sp(26);
 
   // B 区
-  box(ctx, PAD, y+2, 3, 18, 2, CO.doV, null);
+  box(ctx, PAD, y+2, 3, Math.round(20*FS), 2, CO.doV, null);
   drawText(ctx, '制作推进中', PAD+12, y, 19, CO.ink, true);
-  y += 34;
+  y += sp(30);
 
   blocks.forEach(b=>{
     box(ctx, PAD, y, W-PAD*2, b.h, 12, CO.white, CO.line);
-    rr(ctx, PAD, y, W-PAD*2, 42, 12); ctx.fillStyle = '#F8FBFF'; ctx.fill();
-    ctx.fillRect(PAD, y+30, W-PAD*2, 12);
-    line(ctx, PAD, y+42, W-PAD, y+42, CO.line);
-    dot(ctx, PAD+26, y+21, 10.5, CO.doV);
-    drawMid(ctx, String(b.no), PAD+26, y+21, 11, CO.white, true);
-    drawText(ctx, b.sec, PAD+45, y+12, 15, CO.ink, true);
-    drawText(ctx, `${b.cnt} 项`, W-PAD-18, y+14, 12.5, CO.mute, true, 'right');
+    const hh = sp(42);
+    rr(ctx, PAD, y, W-PAD*2, hh, 12); ctx.fillStyle = '#F8FBFF'; ctx.fill();
+    ctx.fillRect(PAD, y+hh-12, W-PAD*2, 12);
+    line(ctx, PAD, y+hh, W-PAD, y+hh, CO.line);
+    dot(ctx, PAD+26, y+hh/2, 10.5*FS, CO.doV);
+    drawMid(ctx, String(b.no), PAD+26, y+hh/2, 11, CO.white, true);
+    drawText(ctx, b.sec, PAD+45, y+hh/2-15*FS*0.62, 15, CO.ink, true);
+    drawText(ctx, `${b.cnt} 项`, W-PAD-18, y+hh/2-12.5*FS*0.6, 12.5, CO.mute, true, 'right');
 
-    let yy = y + 48;
+    let yy = y + hh + sp(6);
     b.subs.forEach(([gname, gcol, grows])=>{
-      box(ctx, PAD+30, yy+3, 3, 14, 1, gcol, null);
+      box(ctx, PAD+30, yy+3, 3, Math.round(14*FS), 1, gcol, null);
       drawText(ctx, gname, PAD+43, yy, 12.5, gcol, true);
       const cg = grows.reduce((a,r)=>a + (r[0]?1:0) + (r[1]?1:0), 0);
       drawText(ctx, `${cg} 项`, PAD+43 + tw(ctx,gname,12.5,true) + 8, yy+2, 11, CO.mute, false);
-      yy += 27;
+      yy += sp(27);
       let k = 0;
       grows.forEach(([left,right,rh])=>{
         [left,right].forEach((it,ci)=>{
           if (!it) return;
           const cxx = PAD + 16 + ci * (IW + 30);
-          dot(ctx, cxx+10, yy+12, 9, CO.doL);
-          drawMid(ctx, String(k+ci+1), cxx+10, yy+12, 9.5, '#4472C9', true);
+          const cy = yy + 3 + 13.5*FS*0.62;
+          dot(ctx, cxx+10, cy, 9*FS, CO.doL);
+          drawMid(ctx, String(k+ci+1), cxx+10, cy, 9.5, '#4472C9', true);
           const whos = whoOf(it);
           const tls = titleLines(ctx, it);
-          tls.forEach((ln,li)=> drawText(ctx, ln, cxx+27, yy+3+li*22, 13.5, CO.ink, true));
+          const lh = Math.round(22*FS);
+          tls.forEach((ln,li)=> drawText(ctx, ln, cxx+27, yy+3+li*lh, 13.5, CO.ink, true));
           drawText(ctx, whos, cxx+IW-6, yy+4, 12, CO.mute, false, 'right');
           if (it.note){
             wrapText(ctx, it.note, 11.5, false, NOTE_W-14, 2)
-              .forEach((ln,li)=> drawText(ctx, ln, cxx+27, yy+3+tls.length*22+li*18, 11.5, CO.ink2, false));
+              .forEach((ln,li)=> drawText(ctx, ln, cxx+27, yy+3+tls.length*lh+li*Math.round(18*FS), 11.5, CO.ink2, false));
           }
         });
         k += 2; yy += rh;
       });
-      yy += 8;
+      yy += sp(8);
     });
-    y += b.h + 14;
+    y += b.h + sp(14);
   });
 
   return { W, H };
@@ -703,8 +721,8 @@ function buildTable(){
       <td><select data-f="pub"><option value="0"${it.pub?'':' selected'}>今日工作内容</option><option value="1"${it.pub?' selected':''}>运营发布</option></select></td>
       <td><select data-f="st">
         <option value="doing"${it.st==='doing'?' selected':''}>制作推进中</option>
-        <option value="wait"${it.st==='wait'?' selected':''}>待客户反馈</option>
-        <option value="review"${it.st==='review'?' selected':''}>客户审核中</option></select></td>
+        <option value="wait"${it.st==='wait'?' selected':''}>待反馈</option>
+        <option value="review"${it.st==='review'?' selected':''}>审核中</option></select></td>
       <td><input data-f="pj" value="${esc(it.pj||'')}"></td>
       <td><input data-f="t" value="${esc(it.t)}"></td>
       <td><input data-f="note" value="${esc(it.note)}"></td>
@@ -763,8 +781,8 @@ function run(){
     <div><b>${all}</b>事项总数</div>
     <div><b>${model.sections.length}</b>板块</div>
     <div><b>${flat.filter(i=>i.pub).length}</b>运营发布</div>
-    <div><b>${cw}</b>待客户反馈</div>
-    <div><b>${cr}</b>客户审核中</div>
+    <div><b>${cw}</b>待反馈</div>
+    <div><b>${cr}</b>审核中</div>
     <div><b>${flat.length-cw-cr}</b>制作推进中</div>`;
   $('resultCard').style.display = '';
   buildTable();
